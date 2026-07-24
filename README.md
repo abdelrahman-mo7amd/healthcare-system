@@ -276,3 +276,7 @@ of ad-hoc `useEffect` fetching:
   appointment — apply the change to the local cache immediately and roll
   back automatically if the server rejects it, so staff never wait on
   network latency mid-workflow.
+
+## Latest Update
+
+Added deployment documentation.
