@@ -1,24 +1,24 @@
 # DECI4-S-415716-Hospital-Core
 
-A full-stack hospital management system: patient records, staff workflows,
-and appointment scheduling, built on React, Node.js/Express, and MongoDB,
-with appointment booking extracted into its own independently-scalable
-microservice.
+## 1. Project Overview
 
-```
-DECI4-S-415716-Hospital-Core/
-├── backend/                    # Node.js core server: models, controllers, medical routes
-├── frontend/                   # React SPA: doctor/nurse/patient/appointment UI
-├── microservices/
-│   └── appointment-service/    # Independent scheduling microservice (own DB, own CORS)
-├── infra/                      # Docker Compose, Kubernetes manifests, VPC blueprint, env templates
-├── tests/e2e/                  # Cross-service end-to-end workflow test
-├── lighthouserc.js             # Lighthouse CI thresholds
-├── .releaserc.json             # Semantic-release / changelog config
-└── .github/workflows/test.yml  # CI: unit + integration + E2E tests, Lighthouse, Docker builds, release
-```
+MediCore is a full-stack hospital management system that replaces
+paper-based medical files with a digital platform for doctors, nurses, and
+administrators. It covers patient registration and medical records, staff
+role-based workflows (doctor dashboard, nurse ward management), and
+appointment scheduling, all backed by MongoDB.
 
-## Architecture
+The system is built as a mono-repo with the high-traffic appointment
+booking feature deliberately extracted into its own microservice: booking
+surges during peak scheduling hours are isolated to that service alone,
+so doctor dashboards and patient records stay responsive even under load.
+The project is containerized end-to-end (Docker Compose for local/dev,
+Kubernetes manifests with autoscaling for production-shaped orchestration)
+and ships with automated seeding, a multi-layer test suite, and a CI/CD
+pipeline that runs tests, Lighthouse audits, and semantic-versioned
+releases on every push.
+
+## 2. Architecture Diagram
 
 ```mermaid
 flowchart LR
@@ -43,241 +43,316 @@ flowchart LR
     BE -.->|"GET /api/appointments/stats\n(dashboard aggregation)"| APPT
 ```
 
-See `infra/VPC-BLUEPRINT.md` for how this maps onto public/private subnets
-in a cloud deployment.
+This diagram renders directly on GitHub. A second diagram, showing how
+these same services map onto public/private cloud subnets, is in
+**Section 11 — VPC Blueprint** and in full detail at
+[`infra/VPC-BLUEPRINT.md`](./infra/VPC-BLUEPRINT.md).
 
-## Why appointments are a separate service
+## 3. Technology Stack
 
-Booking traffic spikes hard at peak scheduling hours. If appointments lived
-in the main backend, a surge there would slow down or crash doctor
-dashboards, patient records, and everything else sharing that process.
-Splitting it out means an appointment surge is isolated to its own
-container/pod, it can be scaled independently (see the `HorizontalPodAutoscaler`
-in `infra/k8s/appointment-service-deployment.yaml`), and if it's ever
-unhealthy, `/api/dashboard/stats` on the main backend degrades gracefully
-instead of failing outright (`backend/controllers/dashboardController.js`).
+| Layer | Technology | Why it was chosen |
+|---|---|---|
+| Frontend framework | React 18 + Vite | Fast dev server, SPA routing via React Router, no full-page reloads between clinical workflows |
+| Frontend data layer | TanStack React Query | Caches patient/appointment data across screens, background re-sync, and enables optimistic UI updates on critical forms |
+| Frontend testing | Jest + React Testing Library | Standard, widely-supported unit testing for React components without a browser |
+| Backend framework | Node.js + Express | Lightweight, unopinionated, easy to structure as MVC (Routes/Controllers/Models) |
+| Database | MongoDB + Mongoose | Schema-flexible documents fit variable clinical records (vitals arrays, medical history) better than rigid relational tables |
+| Backend/API testing | Jest + Supertest | Integration-tests real HTTP routes against a real MongoDB instance |
+| Auth | JSON Web Tokens (JWT) + bcrypt | Stateless auth that both the backend and the independent appointment-service can verify locally, without a shared session store |
+| Microservice isolation | Separate Express app + separate MongoDB database | Lets the appointment-service scale and fail independently of the core backend |
+| Containerization | Docker (multi-stage builds) | Reproducible builds; nginx-served static frontend in production, Node dev servers in the hot-reload dev compose file |
+| Local orchestration | Docker Compose | Single-command startup of the whole stack, with a separate `docker-compose.dev.yml` for live-reload development |
+| Container orchestration | Kubernetes (Minikube locally) | Demonstrates real auto-scaling (HPA) and ingress routing/TLS, the way this would run in a real cluster |
+| CI/CD | GitHub Actions | Native to the repo host, free for public repos, integrates cleanly with semantic-release and Lighthouse CI |
+| Performance auditing | Lighthouse CI | Automated, threshold-enforced performance/accessibility/best-practices checks on every push |
+| Versioning | semantic-release (Conventional Commits) | Removes manual version bumps and changelog writing; ties releases directly to commit history |
+| Frontend hosting | Netlify | Free tier, zero-config static hosting with SPA rewrites for a Vite build |
+| Backend hosting | Vercel (serverless) | Free tier, deploys the same Express app as a serverless function with no route code duplicated |
+| Appointment-service hosting | Render | Needs a persistent long-running Node process, which Vercel/Netlify don't provide on their free static/serverless tiers |
+| Production database | MongoDB Atlas | Free managed tier (M0), avoids self-hosting a database in production |
 
-## 1. Try it locally
+## 4. Prerequisites
 
-**Prerequisites:** Node.js 20+, npm 10+, MongoDB running locally (or Docker,
-see section 4) on `mongodb://localhost:27017`.
+Install these before doing anything else. Versions below are what this
+project was built and tested against — newer patch versions are fine,
+older ones may not be.
+
+| Tool | Required version | Check with |
+|---|---|---|
+| Node.js | 20.x (LTS) | `node -v` |
+| npm | 10.x (ships with Node 20) | `npm -v` |
+| Docker Desktop | 4.30+ (Docker Engine 26+, Compose v2.27+) | `docker --version` / `docker compose version` |
+| kubectl | 1.30.x | `kubectl version --client` |
+| Minikube | 1.33.x | `minikube version` |
+| Git | any recent version | `git --version` |
+
+You will also need free accounts for: **GitHub**, **MongoDB Atlas**,
+**Netlify**, **Vercel**, and **Render** — required only for Section 10
+(Live Deployment), not for local/Kubernetes setup.
+
+## 5. Local Setup
 
 ```bash
+# 1. Clone the repo
+git clone https://github.com/<your-username>/DECI4-S-415716-Hospital-Core.git
 cd DECI4-S-415716-Hospital-Core
-npm install
 
+# 2. Copy environment templates (see Section 7 for what each variable means)
 cp backend/.env.example backend/.env
 cp microservices/appointment-service/.env.example microservices/appointment-service/.env
 cp frontend/.env.example frontend/.env
 
-npm run seed     # demo staff, patients (with medical history), and appointments
-npm run dev      # starts backend (5000), appointment-service (5001), frontend (3000)
+# 3a. EITHER: run natively with npm (needs a local MongoDB on :27017)
+npm install
+npm run seed
+npm run dev
+
+# 3b. OR: run everything in Docker (Mongo included, no local install needed)
+cd infra
+docker compose up --build
+# then, from the project root in a separate terminal, seed the DB once:
+npm run seed
 ```
 
-Open http://localhost:3000 and log in with a seeded account:
+Either path serves the frontend at **http://localhost:3000**. Log in with
+a seeded account — see Section 9 for how the seed data is produced, or
+just use:
 
 ```
 amina.doctor@hospital.test / password123   (doctor)
 nour.nurse@hospital.test   / password123   (nurse)
-admin@hospital.test        / password123   (admin)
 ```
 
-### Running tests
+For live-reload development inside Docker instead of a production-style
+build, use `docker compose -f docker-compose.dev.yml up` from `infra/`.
+
+## 6. Kubernetes Setup
 
 ```bash
-# Frontend unit tests (Jest + React Testing Library)
-npm run test --workspace=frontend
-
-# Backend + appointment-service integration tests (needs Mongo running)
-npm run test --workspace=backend
-npm run test --workspace=microservices/appointment-service
-
-# Cross-service E2E workflow: register patient → book appointment →
-# update record → confirm dashboard stats changed. Run `npm run dev`
-# in one terminal first, then in another:
-npm run test:e2e
-```
-
-Import `MediCore.postman_collection.json` into Postman for manual/integration
-testing of every endpoint (Auth, Patients, Dashboard, Appointments) — the
-login request auto-saves its JWT into a collection variable so every
-subsequent request is already authenticated.
-
-## 2. Try it with Docker
-
-**Production-shaped stack** (built images, nginx-served frontend):
-```bash
-cd infra
-docker compose up --build
-```
-
-**Development stack with hot-reload** (bind-mounted source, nodemon/Vite
-inside containers — edits reflect immediately, no rebuild):
-```bash
-cd infra
-docker compose -f docker-compose.dev.yml up
-```
-
-To simulate scaling the appointment service under load, independent of
-everything else:
-```bash
-docker compose up --scale appointment-service=3
-```
-
-## 3. Kubernetes (Minikube)
-
-`infra/k8s/` has manifests for every service, plus `HorizontalPodAutoscaler`s
-on **both** `backend` and `appointment-service` so either can scale under
-load independently of the other. Full step-by-step commands — starting
-Minikube, building images into its Docker daemon, generating a mock TLS
-cert, creating the Secret, applying manifests, and simulating load to watch
-the HPA scale pods — are in **`infra/k8s/README-ingress.md`**.
-
-Quick summary:
-```bash
-minikube start
+# 1. Start Minikube and enable the Ingress addon
+minikube start --driver=docker
 minikube addons enable ingress
+
+# 2. Point your shell's Docker client at Minikube's internal daemon
+#    (Linux/macOS)
 eval $(minikube docker-env)
+#    (Windows PowerShell)
+# & minikube docker-env --shell powershell | Invoke-Expression
+
+# 3. Build all three images directly into Minikube (no registry push needed)
 docker build -t hospital-backend:latest ./backend
 docker build -t hospital-appointment-service:latest ./microservices/appointment-service
 docker build -t hospital-frontend:latest ./frontend
-# generate mock cert + secret (see infra/k8s/README-ingress.md), then:
-kubectl apply -f infra/k8s/
+
+# 4. In each infra/k8s/*-deployment.yaml, set the image: to the tag above
+#    and add `imagePullPolicy: Never` so Kubernetes uses the local image.
+
+# 5. Generate a mock TLS certificate and create the Secret the Ingress uses
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout hospital.local.key -out hospital.local.crt \
+  -subj "/CN=hospital.local/O=hospital.local"
+kubectl create secret tls hospital-tls-secret \
+  --cert=hospital.local.crt --key=hospital.local.key
+
+# 6. Apply every manifest
+kubectl apply -f infra/k8s/mongo-deployment.yaml
+kubectl apply -f infra/k8s/backend-deployment.yaml
+kubectl apply -f infra/k8s/appointment-service-deployment.yaml
+kubectl apply -f infra/k8s/frontend-deployment.yaml
+kubectl apply -f infra/k8s/ingress.yaml
+
+kubectl get pods -w    # wait until everything is Running
+
+# 7. Map hospital.local to Minikube's IP
+echo "$(minikube ip) hospital.local" | sudo tee -a /etc/hosts   # Linux/macOS
+# Windows: add "<minikube ip> hospital.local" as Administrator to
+# C:\Windows\System32\drivers\etc\hosts
+
+# 8. Access it
 curl -k https://hospital.local/api/health
+# or open https://hospital.local in a browser (accept the self-signed cert warning)
 ```
 
-The Ingress (`infra/k8s/ingress.yaml`) routes `hospital.local` to the
-frontend and `hospital.local/api` to the backend, with TLS termination via
-a Kubernetes Secret holding a mock self-signed certificate.
+Full detail, including how to generate load and watch the
+`HorizontalPodAutoscaler`s scale `backend` and `appointment-service`
+independently, is in
+[`infra/k8s/README-ingress.md`](./infra/k8s/README-ingress.md).
 
-## 4. Deploying to production (free tier)
+## 7. Environment Variables
 
-| Piece | Platform | Why |
-|---|---|---|
-| `frontend/` | **Netlify** | Static Vite build; `frontend/netlify.toml` is already configured |
-| `backend/` | **Vercel** | Deployed as a serverless function via `backend/api/index.js` + `backend/vercel.json` |
-| `microservices/appointment-service/` | Render (or Railway/Fly) | Needs a persistent Node process; Vercel/Netlify don't run long-lived servers, so this piece goes to a Node host |
-| MongoDB | **MongoDB Atlas** | Managed, free M0 tier |
-
-### Frontend → Netlify
-1. Push this repo to GitHub.
-2. Netlify → **Add new site → Import an existing project** → pick the repo.
-3. Base directory: `frontend`. Build command and publish directory are
-   already set via `frontend/netlify.toml` (`npm run build`, `dist`).
-4. Add environment variables: `VITE_API_URL` (your Vercel backend URL +
-   `/api`), `VITE_APPOINTMENT_API_URL` (your Render appointment-service URL +
-   `/api`).
-5. Deploy. You'll get a `https://your-site.netlify.app` URL.
-
-### Backend → Vercel
-1. Vercel → **New Project** → import the repo → **Root Directory:** `backend`.
-2. Vercel auto-detects `backend/vercel.json`, which routes every request to
-   `backend/api/index.js` (a serverless wrapper around the same Express app
-   used locally — no route code duplicated).
-3. Env vars: `MONGO_URI` (Atlas connection string), `JWT_SECRET`,
-   `APPOINTMENT_SERVICE_URL` (fill in after the next step), `CLIENT_ORIGIN`
-   (your Netlify URL).
-4. Deploy.
-
-### Appointment service → Render
-1. Render → **New Web Service** → root directory
-   `microservices/appointment-service` → build `npm install` → start
-   `npm start`.
-2. Env vars: its own `MONGO_URI`, same `JWT_SECRET` as the backend,
-   `CLIENT_ORIGIN` set to your Netlify URL.
-3. Once live, copy its URL back into the Vercel backend's
-   `APPOINTMENT_SERVICE_URL` and redeploy.
-
-### MongoDB → Atlas
-Create a free M0 cluster, add a database user, allow network access from
-`0.0.0.0/0` (or Vercel/Render's IP ranges), and use the connection string in
-both the backend and appointment-service env vars (as two different
-database names on the same cluster, or two separate clusters).
-
-### Seed production data
-Temporarily point your local `.env` files' `MONGO_URI` at the Atlas
-connection strings and run `npm run seed` once from your machine.
-
-## Environment variables
+No real values are stored anywhere in this repo — every service ships an
+`.env.example` (also mirrored under
+[`infra/env-templates/`](./infra/env-templates/)) that you copy to `.env`
+and fill in yourself.
 
 | Variable | Used by | Description |
 |---|---|---|
-| `PORT` | backend, appointment-service | Port the Express server listens on locally (Vercel/Render set this themselves in production) |
-| `MONGO_URI` | backend, appointment-service | MongoDB connection string. **Each service uses its own database** — they do not share one |
-| `JWT_SECRET` | backend, appointment-service | Must be the **same value in both services** — the appointment-service verifies tokens issued by the backend's `/api/auth/login` without calling back into it |
+| `PORT` | backend, appointment-service | Port the Express server listens on locally (hosting platforms set this themselves in production) |
+| `MONGO_URI` | backend, appointment-service | MongoDB connection string. **Each service points at its own database** — they never share one |
+| `JWT_SECRET` | backend, appointment-service | Must be identical in both services — the appointment-service verifies tokens issued by the backend's login route without calling back into it |
 | `CLIENT_ORIGIN` | backend, appointment-service | Exact origin allowed by CORS (e.g. `http://localhost:3000` locally, your Netlify URL in production) |
-| `APPOINTMENT_SERVICE_URL` | backend | Base URL the backend calls for `/api/appointments/stats` when building the dashboard |
-| `VITE_API_URL` | frontend | Base URL (incl. `/api`) for the primary backend |
-| `VITE_APPOINTMENT_API_URL` | frontend | Base URL (incl. `/api`) for the appointment microservice |
+| `APPOINTMENT_SERVICE_URL` | backend | Base URL the backend calls to build `/api/dashboard/stats` |
+| `VITE_API_URL` | frontend | Base URL (including `/api`) for the primary backend |
+| `VITE_APPOINTMENT_API_URL` | frontend | Base URL (including `/api`) for the appointment microservice |
 
-Copies of every service's `.env.example` are also collected in
-`infra/env-templates/` for convenience.
+## 8. API Documentation
 
-## API reference
+Full request/response examples for every endpoint are importable directly
+into Postman: [`MediCore.postman_collection.json`](./MediCore.postman_collection.json).
+Summary below.
 
-### Auth (`backend`, base `/api/auth`)
+### Auth — `backend`, base `/api/auth`
 | Method | Path | Body | Notes |
 |---|---|---|---|
-| POST | `/register` | `{ name, email, password, role, department? }` | `role` ∈ doctor/nurse/admin |
+| POST | `/register` | `{ name, email, password, role, department? }` | `role` ∈ `doctor` / `nurse` / `admin` |
 | POST | `/login` | `{ email, password }` | Returns `{ staff, token }` |
 | GET | `/me` | — (Bearer token) | Returns the authenticated staff profile |
 
-### Patients (`backend`, base `/api/patients`, all require Bearer token)
+### Patients — `backend`, base `/api/patients` (all require Bearer token)
 | Method | Path | Body / Query | Notes |
 |---|---|---|---|
 | GET | `/` | `?search=&ward=&status=` | List/search patients |
 | POST | `/` | patient fields | doctor/nurse/admin only |
-| GET | `/:id` | — | Single patient incl. vitals + history |
+| GET | `/:id` | — | Single patient incl. vitals + medical history |
 | PUT | `/:id` | partial fields | Update status, ward, etc. |
 | DELETE | `/:id` | — | doctor/admin only |
 | POST | `/:id/vitals` | `{ bloodPressure, heartRate, temperature, notes }` | doctor/nurse only |
 
-### Dashboard (`backend`, base `/api/dashboard`)
+### Dashboard — `backend`, base `/api/dashboard`
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/stats` | Aggregates patient/staff counts + live appointment stats; degrades gracefully if appointment-service is down |
+| GET | `/stats` | Aggregates patient/staff counts + live appointment stats; degrades gracefully if the appointment-service is unreachable |
 
-### Appointments (`microservices/appointment-service`, base `/api/appointments`)
+### Appointments — `microservices/appointment-service`, base `/api/appointments`
 | Method | Path | Body / Query | Notes |
 |---|---|---|---|
-| GET | `/stats` | — | **No auth required** — kept cheap for the dashboard poll |
+| GET | `/stats` | — | **No auth required** — kept cheap for the dashboard's poll |
 | GET | `/` | `?doctorId=&patientId=&status=&from=&to=` | Bearer token required |
 | POST | `/` | `{ patientId, patientName, doctorId, doctorName, department?, scheduledAt, reason? }` | |
 | GET | `/:id` | — | |
 | PUT | `/:id` | partial fields | |
 | POST | `/:id/cancel` | — | Sets status to `cancelled` |
 
-Full request/response examples are in `MediCore.postman_collection.json`.
+## 9. Testing
 
-## CI/CD (`.github/workflows/test.yml`)
+```bash
+# Frontend unit tests (Jest + React Testing Library)
+npm run test --workspace=frontend
+```
+Expected when passing:
+```
+Test Suites: 3 passed, 3 total
+Tests:       7 passed, 7 total
+```
 
-On every push/PR to `main`:
-1. Installs all npm workspaces.
-2. Runs **frontend Jest/RTL unit tests**.
-3. Runs **backend and appointment-service integration tests** against a
-   throwaway MongoDB service container.
-4. Builds the frontend and runs **Lighthouse CI** (`lighthouserc.js`)
-   against the static build, enforcing minimum Performance/Accessibility/
-   Best Practices scores — the job fails if any threshold isn't met.
-5. Builds all three Docker images to catch Dockerfile regressions.
-6. On pushes to `main` only: runs **semantic-release**, which reads
-   [Conventional Commits](https://www.conventionalcommits.org/) messages to
-   bump the version, regenerate `CHANGELOG.md`, and cut a GitHub release
-   automatically.
+```bash
+# Backend integration tests (needs MongoDB running)
+npm run test --workspace=backend
+```
+Expected when passing:
+```
+PASS  tests/patient.test.js
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+```
 
-## Frontend data layer
+```bash
+# Appointment-service integration tests (needs MongoDB running)
+npm run test --workspace=microservices/appointment-service
+```
+Expected when passing:
+```
+PASS  tests/appointment.test.js
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+```
 
-The React app uses **TanStack React Query** (`frontend/src/hooks/`) instead
-of ad-hoc `useEffect` fetching:
-- Queries are cached and shared across screens (e.g. patient list data isn't
-  re-fetched every time you switch tabs), with background re-sync.
-- **Optimistic UI updates** on the critical clinical forms — updating a
-  patient's status/ward in the Nurse Portal, and booking/cancelling an
-  appointment — apply the change to the local cache immediately and roll
-  back automatically if the server rejects it, so staff never wait on
-  network latency mid-workflow.
+```bash
+# Cross-service E2E workflow (needs `npm run dev` running in another terminal):
+# registers a patient → books an appointment → updates the record →
+# confirms dashboard stats changed
+npm run test:e2e
+```
+Expected when passing:
+```
+Step 1: register a doctor account and log in
+  ✓ doctor registration succeeds
+Step 2: read baseline dashboard stats
+  ✓ dashboard stats endpoint responds
+Step 3: register a new patient
+  ✓ patient is created
+Step 4: book the patient's appointment on the independent microservice
+  ✓ appointment is booked on appointment-service
+Step 5: update the patient's record (admit them)
+  ✓ patient record updated to admitted
+Step 6: confirm dashboard numbers changed
+  ✓ total patient count incremented by one
+  ✓ admitted count incremented
 
-## Latest Update
+All workflow steps passed.
+```
 
-Added deployment documentation.#   D e v e l o p m e n t   N o t e s  
- 
+CI runs all four of the above automatically on every push/PR — see
+`.github/workflows/test.yml`.
+
+## 10. Live Deployment
+
+> Fill in these URLs once deployed (see the deployment walkthrough in this
+> project's setup notes for Netlify/Vercel/Render/Atlas step-by-step
+> instructions). Replace the placeholders below and attach screenshots of
+> each URL loading successfully in production before submission.
+
+| Service | Platform | Live URL |
+|---|---|---|
+| Frontend | Netlify | `https://REPLACE-ME.netlify.app` |
+| Backend API | Vercel | `https://REPLACE-ME.vercel.app/api/health` |
+| Appointment microservice | Render | `https://REPLACE-ME.onrender.com/api/appointments/stats` |
+| Database | MongoDB Atlas | *(private connection string — not public)* |
+
+**Screenshots to attach:**
+1. The Netlify URL open in a browser, logged in, showing the Doctor Dashboard with real data.
+2. `curl https://REPLACE-ME.vercel.app/api/health` returning `{"status":"ok",...}`.
+3. `curl https://REPLACE-ME.onrender.com/api/appointments/stats` returning real numbers.
+
+## 11. VPC Blueprint
+
+```mermaid
+graph TB
+    subgraph Internet
+        User[Doctor / Nurse browser]
+    end
+
+    subgraph VPC["VPC: hospital-vpc (10.0.0.0/16)"]
+        subgraph PublicSubnet["Public subnet (10.0.1.0/24)"]
+            ALB["Load Balancer / Ingress\n(NGINX Ingress Controller)"]
+            Frontend["frontend container\n(React static build, nginx)"]
+        end
+
+        subgraph PrivateSubnetApp["Private subnet - app tier (10.0.2.0/24)"]
+            Backend["backend container\n(Node/Express :5000)"]
+            Appt["appointment-service container\n(Node/Express :5001)"]
+        end
+
+        subgraph PrivateSubnetData["Private subnet - data tier (10.0.3.0/24)"]
+            Mongo[("MongoDB\nprimary clinical DB + appointments DB")]
+        end
+    end
+
+    User -->|HTTPS 443| ALB
+    ALB --> Frontend
+    Frontend -->|"/api/* (browser XHR)"| Backend
+    Frontend -->|"/api/appointments/*"| Appt
+    Backend --> Mongo
+    Appt --> Mongo
+    Backend -.->|internal call: dashboard stats| Appt
+```
+
+| Layer | Subnet type | Contains | Why |
+|---|---|---|---|
+| Edge / UI | Public | Load balancer / Ingress, `frontend` container | Only layer exposed to the internet; terminates TLS |
+| Application | Private | `backend`, `appointment-service` | Runs business logic and holds JWT secrets; reachable only from the public subnet's load balancer, never directly from the internet |
+| Data | Private (most restricted) | MongoDB (clinical DB + appointments DB) | Holds patient records; no route in or out except from the application subnet, no public IP ever |
+
+Full explanation of the security-group rules and how this maps onto the
+actual Kubernetes/PaaS deployment is in
+[`infra/VPC-BLUEPRINT.md`](./infra/VPC-BLUEPRINT.md).
