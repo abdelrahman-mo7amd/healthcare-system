@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: healthcare-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  backend:
+    build:
+      context: ../backend
+    container_name: healthcare-backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      PORT: 5000
+      MONGO_URI: mongodb://mongo:27017/healthcare
+      JWT_SECRET: ${JWT_SECRET:-change_this_secret}
+      APPOINTMENT_SERVICE_URL: http://appointment-service:5001
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:3000}
+    ports:
+      - "5000:5000"
+
+  appointment-service:
+    build:
+      context: ../microservices/appointment-service
+    container_name: healthcare-appointment-service
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      PORT: 5001
+      MONGO_URI: mongodb://mongo:27017/healthcare_appointments
+      JWT_SECRET: ${JWT_SECRET:-change_this_secret}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:3000}
+    ports:
+      - "5001:5001"
+    # This service scales independently -- e.g. `docker compose up --scale appointment-service=3`
+    # -- without touching backend or frontend containers.
+
+  frontend:
+    build:
+      context: ../frontend
+    container_name: healthcare-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - appointment-service
+    ports:
+      - "3000:80"
+
+volumes:
+  mongo-data:

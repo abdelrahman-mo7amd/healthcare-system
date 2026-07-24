@@ -1,0 +1,28 @@
+{
+  "name": "deci4-s-415716-hospital-core",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Full-stack Hospital Management System (React + Node.js + MongoDB, microservice architecture)",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "microservices/appointment-service"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:appointments": "npm run dev --workspace=microservices/appointment-service",
+    "dev": "concurrently -n BACKEND,FRONTEND,APPT -c blue,green,yellow \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:appointments\"",
+    "seed": "npm run seed --workspace=backend && npm run seed --workspace=microservices/appointment-service",
+    "test": "npm run test --workspace=backend && npm run test --workspace=microservices/appointment-service",
+    "test:e2e": "node tests/e2e/workflow.test.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "semantic-release": "^24.0.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^10.1.5"
+  }
+}

@@ -1,0 +1,165 @@
+:root {
+  --color-bg: #F4F7FA;
+  --color-surface: #FFFFFF;
+  --color-ink: #14243B;
+  --color-ink-soft: #4A5B72;
+  --color-primary: #205E86;
+  --color-primary-dark: #163F5B;
+  --color-teal: #0E8C82;
+  --color-border: #DCE4EC;
+  --color-danger: #C0392B;
+  --color-warning: #C77C1E;
+  --color-success: #1F8A5C;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(20, 36, 59, 0.08), 0 1px 2px rgba(20, 36, 59, 0.06);
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+a { color: inherit; }
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-main {
+  flex: 1;
+  padding: 28px 36px;
+  max-width: 1180px;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px 22px;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+
+@media (max-width: 900px) {
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+  .app-main { padding: 20px; }
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.stat-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-soft);
+  margin-top: 4px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.15s ease;
+}
+
+.btn-primary { background: var(--color-primary); color: #fff; }
+.btn-primary:hover { background: var(--color-primary-dark); }
+
+.btn-outline {
+  background: transparent;
+  border-color: var(--color-border);
+  color: var(--color-ink);
+}
+.btn-outline:hover { background: var(--color-bg); }
+
+.btn-danger { background: var(--color-danger); color: #fff; }
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  color: var(--color-ink);
+  width: 100%;
+}
+
+label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  display: block;
+  margin-bottom: 4px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-ink-soft);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+td {
+  padding: 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-admitted { background: #FDECEA; color: var(--color-danger); }
+.badge-outpatient { background: #E8F3EE; color: var(--color-success); }
+.badge-discharged { background: #EDF1F5; color: var(--color-ink-soft); }
+.badge-booked { background: #FEF3E2; color: var(--color-warning); }
+.badge-confirmed { background: #E6F4F1; color: var(--color-teal); }
+.badge-completed { background: #EDF1F5; color: var(--color-ink-soft); }
+.badge-cancelled { background: #FDECEA; color: var(--color-danger); }
