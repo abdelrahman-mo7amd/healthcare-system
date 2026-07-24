@@ -39,8 +39,13 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5001;
 
 async function start() {
-  await connectDB();
-  app.listen(PORT, () => console.log(`[appointment-service] listening on port ${PORT}`));
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error("[backend] Fatal: could not connect to MongoDB on startup:", err.message);
+    process.exit(1); // fine here: this only runs for `node server.js` / Docker, never on Vercel
+  }
+  app.listen(PORT, () => console.log(`[backend] listening on port ${PORT}`));
 }
 
 if (require.main === module) {
