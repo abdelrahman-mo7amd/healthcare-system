@@ -279,4 +279,5 @@ of ad-hoc `useEffect` fetching:
 
 ## Latest Update
 
-Added deployment documentation.
+Added deployment documentation.#   D e v e l o p m e n t   N o t e s  
+ 
