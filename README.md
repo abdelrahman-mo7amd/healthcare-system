@@ -1,22 +1,31 @@
 # DECI4-S-415716-Hospital-Core
 
+# MediCore: Cloud-Native Healthcare Management System
+
+## Developed by
+**Abdelrahman Mohamed Abd El-Hafez**
+
+A full-stack cloud-native healthcare management system developed as part of the **Digital Egypt Cubs Initiative (DECI)**. MediCore aims to modernize hospital workflows by replacing traditional paper-based medical files with a secure, scalable, and efficient digital platform for doctors, nurses, and administrators.
+
+## Live Demo & Services
+
+**Frontend Application:**  
+https://medicore-hospital0.netlify.app/
+
+**Backend API Health Check:**  
+https://backend-medicore.vercel.app/api/health
+
+**Appointment Microservice Statistics:**  
+https://appointment-srv.vercel.app/api/appointments/stats
+
+
 ## 1. Project Overview
 
-MediCore is a full-stack hospital management system that replaces
-paper-based medical files with a digital platform for doctors, nurses, and
-administrators. It covers patient registration and medical records, staff
-role-based workflows (doctor dashboard, nurse ward management), and
-appointment scheduling, all backed by MongoDB.
+MediCore is a full-stack hospital management system that replaces paper-based medical files with a digital platform for doctors, nurses, and administrators. It covers patient registration and medical records, staff role-based workflows (doctor dashboard, nurse ward management), and appointment scheduling, all backed by MongoDB.
 
-The system is built as a mono-repo with the high-traffic appointment
-booking feature deliberately extracted into its own microservice: booking
-surges during peak scheduling hours are isolated to that service alone,
-so doctor dashboards and patient records stay responsive even under load.
-The project is containerized end-to-end (Docker Compose for local/dev,
-Kubernetes manifests with autoscaling for production-shaped orchestration)
-and ships with automated seeding, a multi-layer test suite, and a CI/CD
-pipeline that runs tests, Lighthouse audits, and semantic-versioned
-releases on every push.
+The system is built as a mono-repo with the high-traffic appointment booking feature deliberately extracted into its own microservice. Booking surges during peak scheduling hours are isolated to that service alone, ensuring doctor dashboards and patient records remain responsive even under heavy load.
+
+The project is containerized end-to-end using **Docker Compose** for local development and **Kubernetes manifests** with autoscaling for production-style orchestration. It includes automated database seeding, a multi-layer testing suite, and a CI/CD pipeline that executes automated tests, Lighthouse performance audits, and semantic-versioned releases on every push.
 
 ## 2. Architecture Diagram
 
